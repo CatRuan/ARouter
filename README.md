@@ -1,11 +1,11 @@
 ```
     本框架基于Arouter进行修改，添加跨模块调用方法的api，优化模块间通讯
 ```
-本框架继承Arouter原有的所有功能，具体可以参考
-[中文文档](https://github.com/alibaba/ARouter/blob/master/README_CN.md)
+#### 本框架继承Arouter原有的所有功能，具体可以参考[中文文档](https://github.com/alibaba/ARouter/blob/master/README_CN.md)  
+本框架适用于组件化结构的项目
 
 #### 除此之外添加如下新的api  
-1. 跨模块调用同步方法，根据route调用，不需要引入模块
+1. 跨模块调用同步方法，对比Arouter原有调用方式，不需要创建模块实例，即模块间没有强耦合
 ``` java
   // 同步方法调用（无参数/无返回）
   ARouter.getInstance().build("/module/service").call("test1");
@@ -24,7 +24,7 @@
 ```  
 2. 跨模块调用异步方法，根据route调用，不需要引入模块
 ``` java
-// 同步方法调用（无参数/有返回）,无参数调用同理
+// 同步方法调用（无参数/有返回）,对比Arouter原有调用方式，不需要创建模块实例，即模块间没有强耦合
 ARouter.getInstance()
          .build("/module/service")
          .call("test5", "参数1", new MethodCallback<TestBean>() {
