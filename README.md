@@ -10,9 +10,9 @@
 
 #### Lastest version
 
-module|arouter-api|arouter-compiler|arouter-register
----|---|---|---
-version|[![Download](https://api.bintray.com/packages/zhi1ong/maven/arouter-api/images/download.svg)](https://bintray.com/zhi1ong/maven/arouter-api/_latestVersion)|[![Download](https://api.bintray.com/packages/zhi1ong/maven/arouter-compiler/images/download.svg)](https://bintray.com/zhi1ong/maven/arouter-compiler/_latestVersion)|[![Download](https://api.bintray.com/packages/zhi1ong/maven/arouter-register/images/download.svg)](https://bintray.com/zhi1ong/maven/arouter-register/_latestVersion)
+module|arouter-api|arouter-compiler|arouter-annotation|arouter-register
+---|---|---|---|---
+version|[![Download](https://api.bintray.com/packages/zhi1ong/maven/arouter-api/images/download.svg)](https://bintray.com/zhi1ong/maven/arouter-api/_latestVersion)|[![Download](https://api.bintray.com/packages/zhi1ong/maven/arouter-compiler/images/download.svg)](https://bintray.com/zhi1ong/maven/arouter-compiler/_latestVersion)|[![Download](https://api.bintray.com/packages/zhi1ong/maven/arouter-annotation/images/download.svg)](https://bintray.com/zhi1ong/maven/arouter-annotation/_latestVersion)|[![Download](https://api.bintray.com/packages/zhi1ong/maven/arouter-register/images/download.svg)](https://bintray.com/zhi1ong/maven/arouter-register/_latestVersion)
 
 #### Demo
 
@@ -31,7 +31,6 @@ version|[![Download](https://api.bintray.com/packages/zhi1ong/maven/arouter-api/
 10. Support multiple ways to configure transition animation
 11. Support for fragement
 12. Full kotlin support (Look at Other#2)
-13. **Generate route doc support**
 
 #### II. Classic Case
 1. Forward from external URLs to internal pages, and parsing parameters
@@ -44,12 +43,12 @@ version|[![Download](https://api.bintray.com/packages/zhi1ong/maven/arouter-api/
 ``` gradle
 android {
     defaultConfig {
-        ...
-        javaCompileOptions {
-            annotationProcessorOptions {
-                arguments = [AROUTER_MODULE_NAME: project.getName()]
-            }
-        }
+	...
+	javaCompileOptions {
+	    annotationProcessorOptions {
+		arguments = [ moduleName : project.getName() ]
+	    }
+	}
     }
 }
 
@@ -128,8 +127,8 @@ buildscript {
 }
 ```
 
-Optional, use the registration plugin provided by the ARouter to automatically load the routing table(power by [AutoRegister](https://github.com/luckybilly/AutoRegister)). By default, the ARouter will scanned the dex files .
-Performing an auto-registration via the gradle plugin can shorten the initialization time , it should be noted that the plugin must be used with api above 1.3.0!
+Optional, use the registration plugin provided by the ARouter to automatically load the routing table. By default, the ARouter will scanned the dex files .
+Performing an auto-registration via the gradle plugin can shorten the initialization time , it should be noted that the plugin must be used with api 1.3.0!
 
 #### IV. Advanced usage
 1. Jump via URL
@@ -188,7 +187,7 @@ public class Test1Activity extends Activity {
     }
 }
 
-// If you need to pass a custom object, Create a new class(Not the custom object class),implement the SerializationService, And use the @Route annotation annotation, E.g:
+// If you need to pass a custom object, Need to implement the SerializationService, And use the @Route annotation annotation, E.g:
 @Route(path = "/service/json")
 public class JsonServiceImpl implements SerializationService {
     @Override
@@ -389,9 +388,6 @@ ARouter.getInstance().build("/home/main").greenChannel().navigation();
 
 // Use your own log tool to print logs
 ARouter.setLogger();
-
-// Use your custom thread pool
-ARouter.setExecutor();
 ```
 
 3. Get the original URI
@@ -426,22 +422,6 @@ public class PathReplaceServiceImpl implements PathReplaceService {
 }
 ```
 
-5. Generate router doc
-``` gradle
-// Edit build.gradle, add option 'AROUTER_GENERATE_DOC = enable'
-// Doc file : build/generated/source/apt/(debug or release)/com/alibaba/android/arouter/docs/arouter-map-of-${moduleName}.json
-android {
-    defaultConfig {
-        ...
-        javaCompileOptions {
-            annotationProcessorOptions {
-                arguments = [AROUTER_MODULE_NAME: project.getName(), AROUTER_GENERATE_DOC: "enable"]
-            }
-        }
-    }
-}
-```
-
 #### VI. Other
 
 1. Old version of gradle plugin configuration
@@ -460,7 +440,7 @@ buildscript {
 
 apt {
     arguments {
-    	AROUTER_MODULE_NAME project.getName();
+    	moduleName project.getName();
     }
 }
 
@@ -478,7 +458,7 @@ apply plugin: 'kotlin-kapt'
 
 kapt {
     arguments {
-        arg("AROUTER_MODULE_NAME", project.getName())
+        arg("moduleName", project.getName())
     }
 }
 
@@ -493,14 +473,22 @@ dependencies {
 
 1. Communication
 
-    1. DingDing group1
+    1. group1 (Full)
     
-        ![dingding](https://raw.githubusercontent.com/alibaba/ARouter/master/demo/dingding-group-1.png)
+        ![qq](https://raw.githubusercontent.com/alibaba/ARouter/master/demo/arouter-qq-addr.png)
 
-    2. QQ group1
-    
-        ![qq](https://raw.githubusercontent.com/alibaba/ARouter/master/demo/qq-group-1.png)
-
-    3. QQ group2
+    2. group2
         
-        ![qq](https://raw.githubusercontent.com/alibaba/ARouter/master/demo/qq-group-2.png)
+        ![qq](https://raw.githubusercontent.com/alibaba/ARouter/master/demo/qq-qrcode-2.JPG)
+
+#### VIII. Contributions
+
+1. [imknown](https://github.com/alibaba/ARouter/commits?author=imknown)
+
+2. [crazy1235](https://github.com/crazy1235)
+
+3. [luckybilly](https://github.com/luckybilly)
+
+4. [LinXiaoTao](https://github.com/LinXiaoTao)
+
+5. [tanglie1993](https://github.com/tanglie1993)

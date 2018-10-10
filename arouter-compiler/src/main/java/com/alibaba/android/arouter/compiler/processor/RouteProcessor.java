@@ -1,22 +1,22 @@
 package com.alibaba.android.arouter.compiler.processor;
 
-import com.alibaba.android.arouter.compiler.entity.RouteDoc;
 import com.alibaba.android.arouter.compiler.utils.Consts;
 import com.alibaba.android.arouter.compiler.utils.Logger;
+import com.alibaba.android.arouter.compiler.utils.PathUtils;
 import com.alibaba.android.arouter.compiler.utils.TypeUtils;
 import com.alibaba.android.arouter.facade.annotation.Autowired;
 import com.alibaba.android.arouter.facade.annotation.Route;
 import com.alibaba.android.arouter.facade.enums.RouteType;
-import com.alibaba.android.arouter.facade.enums.TypeKind;
+import com.alibaba.android.arouter.facade.model.MethodModel;
+import com.alibaba.android.arouter.facade.model.ParamModel;
 import com.alibaba.android.arouter.facade.model.RouteMeta;
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.serializer.SerializerFeature;
 import com.google.auto.service.AutoService;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.ParameterSpec;
 import com.squareup.javapoet.ParameterizedTypeName;
+import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 import com.squareup.javapoet.WildcardTypeName;
 
@@ -24,8 +24,6 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 
-import java.io.IOException;
-import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -45,30 +43,32 @@ import javax.annotation.processing.SupportedOptions;
 import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
+import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
-import javax.tools.StandardLocation;
 
 import static com.alibaba.android.arouter.compiler.utils.Consts.ACTIVITY;
 import static com.alibaba.android.arouter.compiler.utils.Consts.ANNOTATION_TYPE_AUTOWIRED;
 import static com.alibaba.android.arouter.compiler.utils.Consts.ANNOTATION_TYPE_ROUTE;
+import static com.alibaba.android.arouter.compiler.utils.Consts.METHOD_CALLBACK_ANNOTATION;
 import static com.alibaba.android.arouter.compiler.utils.Consts.FRAGMENT;
 import static com.alibaba.android.arouter.compiler.utils.Consts.IPROVIDER_GROUP;
 import static com.alibaba.android.arouter.compiler.utils.Consts.IROUTE_GROUP;
+import static com.alibaba.android.arouter.compiler.utils.Consts.IROUTE_METHOD;
 import static com.alibaba.android.arouter.compiler.utils.Consts.ITROUTE_ROOT;
-import static com.alibaba.android.arouter.compiler.utils.Consts.KEY_GENERATE_DOC_NAME;
 import static com.alibaba.android.arouter.compiler.utils.Consts.KEY_MODULE_NAME;
+import static com.alibaba.android.arouter.compiler.utils.Consts.METHOD;
+import static com.alibaba.android.arouter.compiler.utils.Consts.METHOD_CALLBACK;
 import static com.alibaba.android.arouter.compiler.utils.Consts.METHOD_LOAD_INTO;
 import static com.alibaba.android.arouter.compiler.utils.Consts.NAME_OF_GROUP;
 import static com.alibaba.android.arouter.compiler.utils.Consts.NAME_OF_PROVIDER;
 import static com.alibaba.android.arouter.compiler.utils.Consts.NAME_OF_ROOT;
-import static com.alibaba.android.arouter.compiler.utils.Consts.PACKAGE_OF_GENERATE_DOCS;
 import static com.alibaba.android.arouter.compiler.utils.Consts.PACKAGE_OF_GENERATE_FILE;
 import static com.alibaba.android.arouter.compiler.utils.Consts.SEPARATOR;
 import static com.alibaba.android.arouter.compiler.utils.Consts.SERVICE;
-import static com.alibaba.android.arouter.compiler.utils.Consts.VALUE_ENABLE;
 import static com.alibaba.android.arouter.compiler.utils.Consts.WARNING_TIPS;
 import static javax.lang.model.element.Modifier.PUBLIC;
 
@@ -80,7 +80,7 @@ import static javax.lang.model.element.Modifier.PUBLIC;
  * @since 16/8/15 下午10:08
  */
 @AutoService(Processor.class)
-@SupportedOptions({KEY_MODULE_NAME, KEY_GENERATE_DOC_NAME})
+@SupportedOptions(KEY_MODULE_NAME)
 @SupportedSourceVersion(SourceVersion.RELEASE_7)
 @SupportedAnnotationTypes({ANNOTATION_TYPE_ROUTE, ANNOTATION_TYPE_AUTOWIRED})
 public class RouteProcessor extends AbstractProcessor {
@@ -93,8 +93,8 @@ public class RouteProcessor extends AbstractProcessor {
     private TypeUtils typeUtils;
     private String moduleName = null;   // Module name, maybe its 'app' or others
     private TypeMirror iProvider = null;
-    private boolean generateDoc;    // If need generate router doc
-    private Writer docWriter;       // Writer used for write doc
+    private Map<String, List<MethodModel>> methods = new HashMap<>(10);
+    private Map<String, String> providerPaths = new HashMap<>(10);
 
     /**
      * Initializes the processor with the processing environment by
@@ -122,7 +122,6 @@ public class RouteProcessor extends AbstractProcessor {
         Map<String, String> options = processingEnv.getOptions();
         if (MapUtils.isNotEmpty(options)) {
             moduleName = options.get(KEY_MODULE_NAME);
-            generateDoc = VALUE_ENABLE.equals(options.get(KEY_GENERATE_DOC_NAME));
         }
 
         if (StringUtils.isNotEmpty(moduleName)) {
@@ -131,34 +130,46 @@ public class RouteProcessor extends AbstractProcessor {
             logger.info("The user has configuration the module name, it was [" + moduleName + "]");
         } else {
             logger.error("These no module name, at 'build.gradle', like :\n" +
-                    "android {\n" +
-                    "    defaultConfig {\n" +
-                    "        ...\n" +
-                    "        javaCompileOptions {\n" +
-                    "            annotationProcessorOptions {\n" +
-                    "                arguments = [AROUTER_MODULE_NAME: project.getName()]\n" +
-                    "            }\n" +
-                    "        }\n" +
+                    "apt {\n" +
+                    "    arguments {\n" +
+                    "        moduleName project.getName();\n" +
                     "    }\n" +
                     "}\n");
             throw new RuntimeException("ARouter::Compiler >>> No module name, for more information, look at gradle log.");
         }
-
-        if (generateDoc) {
-            try {
-                docWriter = mFiler.createResource(
-                        StandardLocation.SOURCE_OUTPUT,
-                        PACKAGE_OF_GENERATE_DOCS,
-                        "arouter-map-of-" + moduleName + ".json"
-                ).openWriter();
-            } catch (IOException e) {
-                logger.error("Create doc writer failed, because " + e.getMessage());
-            }
-        }
-
-        iProvider = elements.getTypeElement(Consts.IPROVIDER).asType();
-
+        createBaseType();
         logger.info(">>> RouteProcessor init. <<<");
+    }
+
+    private MethodSpec.Builder loadIntoMethodOfProviderBuilder;
+    private TypeMirror type_Activity;
+    private TypeMirror type_Service;
+    private TypeMirror fragmentTm;
+    private TypeMirror fragmentTmV4;
+    private TypeMirror type_method;
+    private TypeMirror type_methodCallbackAnnotation;
+    private TypeMirror type_methodCallback;
+    private TypeElement type_IRouteGroup;
+    private TypeElement type_IProviderGroup;
+    private TypeElement type_IRouteMethod;
+    private ClassName routeMetaCn;
+    private ClassName routeTypeCn;
+
+    private void createBaseType() {
+        // todo 如下逻辑之前写在创建类文件的地方，抽出来感觉更加清爽一点
+        iProvider = elements.getTypeElement(Consts.IPROVIDER).asType();
+        type_Activity = elements.getTypeElement(ACTIVITY).asType();
+        type_Service = elements.getTypeElement(SERVICE).asType();
+        fragmentTm = elements.getTypeElement(FRAGMENT).asType();
+        fragmentTmV4 = elements.getTypeElement(Consts.FRAGMENT_V4).asType();
+        type_method = elements.getTypeElement(METHOD).asType();
+        type_methodCallbackAnnotation = elements.getTypeElement(METHOD_CALLBACK_ANNOTATION).asType();
+        type_methodCallback = elements.getTypeElement(METHOD_CALLBACK).asType();
+        type_IRouteGroup = elements.getTypeElement(IROUTE_GROUP);
+        type_IProviderGroup = elements.getTypeElement(IPROVIDER_GROUP);
+        type_IRouteMethod = elements.getTypeElement(IROUTE_METHOD);
+        routeMetaCn = ClassName.get(RouteMeta.class);
+        routeTypeCn = ClassName.get(RouteType.class);
     }
 
     /**
@@ -184,25 +195,13 @@ public class RouteProcessor extends AbstractProcessor {
         return false;
     }
 
-    private void parseRoutes(Set<? extends Element> routeElements) throws IOException {
+    private void parseRoutes(Set<? extends Element> routeElements) throws Exception {
         if (CollectionUtils.isNotEmpty(routeElements)) {
-            // prepare the type an so on.
+            // Perpare the type an so on.
 
             logger.info(">>> Found routes, size is " + routeElements.size() + " <<<");
 
             rootMap.clear();
-
-            TypeMirror type_Activity = elements.getTypeElement(ACTIVITY).asType();
-            TypeMirror type_Service = elements.getTypeElement(SERVICE).asType();
-            TypeMirror fragmentTm = elements.getTypeElement(FRAGMENT).asType();
-            TypeMirror fragmentTmV4 = elements.getTypeElement(Consts.FRAGMENT_V4).asType();
-
-            // Interface of ARouter
-            TypeElement type_IRouteGroup = elements.getTypeElement(IROUTE_GROUP);
-            TypeElement type_IProviderGroup = elements.getTypeElement(IPROVIDER_GROUP);
-            ClassName routeMetaCn = ClassName.get(RouteMeta.class);
-            ClassName routeTypeCn = ClassName.get(RouteType.class);
-
             /*
                Build input type, format as :
 
@@ -246,28 +245,26 @@ public class RouteProcessor extends AbstractProcessor {
             for (Element element : routeElements) {
                 TypeMirror tm = element.asType();
                 Route route = element.getAnnotation(Route.class);
-                RouteMeta routeMeta;
+                RouteMeta routeMeta = null;
 
                 if (types.isSubtype(tm, type_Activity)) {                 // Activity
                     logger.info(">>> Found activity route: " + tm.toString() + " <<<");
 
                     // Get all fields annotation by @Autowired
                     Map<String, Integer> paramsType = new HashMap<>();
-                    Map<String, Autowired> injectConfig = new HashMap<>();
                     for (Element field : element.getEnclosedElements()) {
                         if (field.getKind().isField() && field.getAnnotation(Autowired.class) != null && !types.isSubtype(field.asType(), iProvider)) {
                             // It must be field, then it has annotation, but it not be provider.
                             Autowired paramConfig = field.getAnnotation(Autowired.class);
-                            String injectName = StringUtils.isEmpty(paramConfig.name()) ? field.getSimpleName().toString() : paramConfig.name();
-                            paramsType.put(injectName, typeUtils.typeExchange(field));
-                            injectConfig.put(injectName, paramConfig);
+                            paramsType.put(StringUtils.isEmpty(paramConfig.name()) ? field.getSimpleName().toString() : paramConfig.name(), typeUtils.typeExchange(field));
                         }
                     }
                     routeMeta = new RouteMeta(route, element, RouteType.ACTIVITY, paramsType);
-                    routeMeta.setInjectConfig(injectConfig);
+                    parseMethod(element, routeMeta);
                 } else if (types.isSubtype(tm, iProvider)) {         // IProvider
                     logger.info(">>> Found provider route: " + tm.toString() + " <<<");
                     routeMeta = new RouteMeta(route, element, RouteType.PROVIDER, null);
+                    parseMethod(element, routeMeta);
                 } else if (types.isSubtype(tm, type_Service)) {           // Service
                     logger.info(">>> Found service route: " + tm.toString() + " <<<");
                     routeMeta = new RouteMeta(route, element, RouteType.parse(SERVICE), null);
@@ -281,12 +278,10 @@ public class RouteProcessor extends AbstractProcessor {
                 categories(routeMeta);
             }
 
-            MethodSpec.Builder loadIntoMethodOfProviderBuilder = MethodSpec.methodBuilder(METHOD_LOAD_INTO)
+            loadIntoMethodOfProviderBuilder = MethodSpec.methodBuilder(METHOD_LOAD_INTO)
                     .addAnnotation(Override.class)
                     .addModifiers(PUBLIC)
                     .addParameter(providerParamSpec);
-
-            Map<String, List<RouteDoc>> docSource = new HashMap<>();
 
             // Start generate java source, structure is divided into upper and lower levels, used for demand initialization.
             for (Map.Entry<String, Set<RouteMeta>> entry : groupMap.entrySet()) {
@@ -297,42 +292,39 @@ public class RouteProcessor extends AbstractProcessor {
                         .addModifiers(PUBLIC)
                         .addParameter(groupParamSpec);
 
-                List<RouteDoc> routeDocList = new ArrayList<>();
-
                 // Build group method body
                 Set<RouteMeta> groupData = entry.getValue();
                 for (RouteMeta routeMeta : groupData) {
-                    RouteDoc routeDoc = extractDocInfo(routeMeta);
-
-                    ClassName className = ClassName.get((TypeElement) routeMeta.getRawType());
-
                     switch (routeMeta.getType()) {
                         case PROVIDER:  // Need cache provider's super class
                             List<? extends TypeMirror> interfaces = ((TypeElement) routeMeta.getRawType()).getInterfaces();
                             for (TypeMirror tm : interfaces) {
-                                routeDoc.addPrototype(tm.toString());
-
-                                if (types.isSameType(tm, iProvider)) {   // Its implements iProvider interface himself.
-                                    // This interface extend the IProvider, so it can be used for mark provider
-                                    loadIntoMethodOfProviderBuilder.addStatement(
-                                            "providers.put($S, $T.build($T." + routeMeta.getType() + ", $T.class, $S, $S, null, " + routeMeta.getPriority() + ", " + routeMeta.getExtra() + "))",
-                                            (routeMeta.getRawType()).toString(),
-                                            routeMetaCn,
-                                            routeTypeCn,
-                                            className,
-                                            routeMeta.getPath(),
-                                            routeMeta.getGroup());
-                                } else if (types.isSubtype(tm, iProvider)) {
-                                    // This interface extend the IProvider, so it can be used for mark provider
-                                    loadIntoMethodOfProviderBuilder.addStatement(
-                                            "providers.put($S, $T.build($T." + routeMeta.getType() + ", $T.class, $S, $S, null, " + routeMeta.getPriority() + ", " + routeMeta.getExtra() + "))",
-                                            tm.toString(),    // So stupid, will duplicate only save class name.
-                                            routeMetaCn,
-                                            routeTypeCn,
-                                            className,
-                                            routeMeta.getPath(),
-                                            routeMeta.getGroup());
+                                String className = tm.toString();
+                                if (types.isSameType(tm, iProvider) || types.isSubtype(tm, iProvider)) {
+                                    createProviderMethod(className, routeMeta);
                                 }
+                                // todo 之前的代码实在太冗余了,就是下面这堆
+//                                if (types.isSameType(tm, iProvider)) {   // Its implements iProvider interface himself.
+//                                    // This interface extend the IProvider, so it can be used for mark provider
+//                                    loadIntoMethodOfProviderBuilder.addStatement(
+//                                            "providers.put($S, $T.build($T." + routeMeta.getType() + ", $T.class, $S, $S, null, " + routeMeta.getPriority() + ", " + routeMeta.getExtra() + "))",
+//                                            (routeMeta.getRawType()).toString(),
+//                                            routeMetaCn,
+//                                            routeTypeCn,
+//                                            ClassName.get((TypeElement) routeMeta.getRawType()),
+//                                            routeMeta.getPath(),
+//                                            routeMeta.getGroup());
+//                                } else if (types.isSubtype(tm, iProvider)) {
+//                                    // This interface extend the IProvider, so it can be used for mark provider
+//                                    loadIntoMethodOfProviderBuilder.addStatement(
+//                                            "providers.put($S, $T.build($T." + routeMeta.getType() + ", $T.class, $S, $S, null, " + routeMeta.getPriority() + ", " + routeMeta.getExtra() + "))",
+//                                            tm.toString(),    // So stupid, will duplicate only save class name.
+//                                            routeMetaCn,
+//                                            routeTypeCn,
+//                                            ClassName.get((TypeElement) routeMeta.getRawType()),
+//                                            routeMeta.getPath(),
+//                                            routeMeta.getGroup());
+//                                }
                             }
                             break;
                         default:
@@ -342,38 +334,12 @@ public class RouteProcessor extends AbstractProcessor {
                     // Make map body for paramsType
                     StringBuilder mapBodyBuilder = new StringBuilder();
                     Map<String, Integer> paramsType = routeMeta.getParamsType();
-                    Map<String, Autowired> injectConfigs = routeMeta.getInjectConfig();
                     if (MapUtils.isNotEmpty(paramsType)) {
-                        List<RouteDoc.Param> paramList = new ArrayList<>();
-
                         for (Map.Entry<String, Integer> types : paramsType.entrySet()) {
                             mapBodyBuilder.append("put(\"").append(types.getKey()).append("\", ").append(types.getValue()).append("); ");
-
-                            RouteDoc.Param param = new RouteDoc.Param();
-                            Autowired injectConfig = injectConfigs.get(types.getKey());
-                            param.setKey(types.getKey());
-                            param.setType(TypeKind.values()[types.getValue()].name().toLowerCase());
-                            param.setDescription(injectConfig.desc());
-                            param.setRequired(injectConfig.required());
-
-                            paramList.add(param);
                         }
-
-                        routeDoc.setParams(paramList);
                     }
-                    String mapBody = mapBodyBuilder.toString();
-
-                    loadIntoMethodOfGroupBuilder.addStatement(
-                            "atlas.put($S, $T.build($T." + routeMeta.getType() + ", $T.class, $S, $S, " + (StringUtils.isEmpty(mapBody) ? null : ("new java.util.HashMap<String, Integer>(){{" + mapBodyBuilder.toString() + "}}")) + ", " + routeMeta.getPriority() + ", " + routeMeta.getExtra() + "))",
-                            routeMeta.getPath(),
-                            routeMetaCn,
-                            routeTypeCn,
-                            className,
-                            routeMeta.getPath().toLowerCase(),
-                            routeMeta.getGroup().toLowerCase());
-
-                    routeDoc.setClassName(className.toString());
-                    routeDocList.add(routeDoc);
+                    createGroupMethod(loadIntoMethodOfGroupBuilder, mapBodyBuilder, routeMeta);
                 }
 
                 // Generate groups
@@ -389,7 +355,6 @@ public class RouteProcessor extends AbstractProcessor {
 
                 logger.info(">>> Generated group: " + groupName + "<<<");
                 rootMap.put(groupName, groupFileName);
-                docSource.put(groupName, routeDocList);
             }
 
             if (MapUtils.isNotEmpty(rootMap)) {
@@ -399,14 +364,7 @@ public class RouteProcessor extends AbstractProcessor {
                 }
             }
 
-            // Output route doc
-            if (generateDoc) {
-                docWriter.append(JSON.toJSONString(docSource, SerializerFeature.PrettyFormat));
-                docWriter.flush();
-                docWriter.close();
-            }
-
-            // Write provider into disk
+            // Wirte provider into disk
             String providerMapFileName = NAME_OF_PROVIDER + SEPARATOR + moduleName;
             JavaFile.builder(PACKAGE_OF_GENERATE_FILE,
                     TypeSpec.classBuilder(providerMapFileName)
@@ -429,26 +387,155 @@ public class RouteProcessor extends AbstractProcessor {
                             .addMethod(loadIntoMethodOfRootBuilder.build())
                             .build()
             ).build().writeTo(mFiler);
-
+            createMethodsFile();
             logger.info(">>> Generated root, name is " + rootFileName + " <<<");
+
         }
     }
 
-    /**
-     * Extra doc info from route meta
-     *
-     * @param routeMeta meta
-     * @return doc
-     */
-    private RouteDoc extractDocInfo(RouteMeta routeMeta) {
-        RouteDoc routeDoc = new RouteDoc();
-        routeDoc.setGroup(routeMeta.getGroup());
-        routeDoc.setPath(routeMeta.getPath());
-        routeDoc.setDescription(routeMeta.getName());
-        routeDoc.setType(routeMeta.getType().name().toLowerCase());
-        routeDoc.setMark(routeMeta.getExtra());
+    private void createGroupMethod(MethodSpec.Builder loadIntoMethodOfGroupBuilder, StringBuilder mapBodyBuilder, RouteMeta routeMeta) throws Exception {
+        String mapBody = mapBodyBuilder.toString();
+        String qualifiedName = (routeMeta.getRawType()).toString();
+        if (null != providerPaths.get(qualifiedName)) {
+            loadIntoMethodOfGroupBuilder.addStatement(
+                    "atlas.put($S, $T.build($T." + routeMeta.getType() + ", $T.class, $S, $S, " + (StringUtils.isEmpty(mapBody) ? null : ("new java.util.HashMap<String, Integer>(){{" + mapBodyBuilder.toString() + "}}")) + ", " + routeMeta.getPriority() + ", " + routeMeta.getExtra() + ", $T.class))",
+                    routeMeta.getPath(),
+                    routeMetaCn,
+                    routeTypeCn,
+                    ClassName.get((TypeElement) routeMeta.getRawType()),
+                    routeMeta.getPath().toLowerCase(),
+                    routeMeta.getGroup().toLowerCase(),
+                    PathUtils.pathExchange2MethodClass(providerPaths.get(qualifiedName)));
+        } else {
+            loadIntoMethodOfGroupBuilder.addStatement(
+                    "atlas.put($S, $T.build($T." + routeMeta.getType() + ", $T.class, $S, $S, " + (StringUtils.isEmpty(mapBody) ? null : ("new java.util.HashMap<String, Integer>(){{" + mapBodyBuilder.toString() + "}}")) + ", " + routeMeta.getPriority() + ", " + routeMeta.getExtra() + ",null))",
+                    routeMeta.getPath(),
+                    routeMetaCn,
+                    routeTypeCn,
+                    ClassName.get((TypeElement) routeMeta.getRawType()),
+                    routeMeta.getPath().toLowerCase(),
+                    routeMeta.getGroup().toLowerCase());
+        }
+    }
 
-        return routeDoc;
+    private void createProviderMethod(String className, RouteMeta routeMeta) throws Exception {
+        String qualifiedName = (routeMeta.getRawType()).toString();
+        if (null != providerPaths.get(qualifiedName)) {
+            loadIntoMethodOfProviderBuilder
+                    .addStatement(
+                            "providers.put($S, $T.build($T." + routeMeta.getType() + ", $T.class, $S, $S, null, " + routeMeta.getPriority() + ", " + routeMeta.getExtra() + ", $T.class))",
+                            className,
+                            routeMetaCn,
+                            routeTypeCn,
+                            ClassName.get((TypeElement) routeMeta.getRawType()),
+                            routeMeta.getPath(),
+                            routeMeta.getGroup(),
+                            PathUtils.pathExchange2MethodClass(providerPaths.get(qualifiedName))
+                    );
+        } else {
+            loadIntoMethodOfProviderBuilder
+                    .addStatement(
+                            "providers.put($S, $T.build($T." + routeMeta.getType() + ", $T.class, $S, $S, null, " + routeMeta.getPriority() + ", " + routeMeta.getExtra() + ",null))",
+                            className,
+                            routeMetaCn,
+                            routeTypeCn,
+                            ClassName.get((TypeElement) routeMeta.getRawType()),
+                            routeMeta.getPath(),
+                            routeMeta.getGroup()
+                    );
+        }
+    }
+
+    private void createMethodsFile() throws Exception {
+        List<MethodModel> methodModels;
+        List<ParamModel> parametersList;
+        for (String className : methods.keySet()) {
+            // ruan create class like ARouter$$Service$$Ruan$$Method
+            TypeSpec.Builder classBuilder = TypeSpec
+                    .classBuilder(PathUtils.pathExchange2MethodClassName(providerPaths.get(className)))
+                    .addSuperinterface(ClassName.get(type_IRouteMethod))
+                    .addModifiers(PUBLIC);
+            // ruan create loadMethodInfo
+            MethodSpec.Builder methodLoad = MethodSpec
+                    .methodBuilder("loadMethodInfo")
+                    .addModifiers(PUBLIC)
+                    .addAnnotation(Override.class)
+                    .addParameter(ParameterizedTypeName
+                            .get(ClassName.get(List.class), ClassName.get(MethodModel.class)), "methods");
+
+            methodModels = methods.get(className);
+            for (MethodModel methodModel : methodModels) {
+                String paramsMethodName = "loadMethod" + methodModel.getMethodName() + "Params";
+
+                // ruan create loadMethodxxxxParams
+                MethodSpec.Builder methodParams = MethodSpec
+                        .methodBuilder(paramsMethodName)
+                        .addModifiers(PUBLIC)
+                        .returns(ParameterizedTypeName.get(ClassName.get(List.class), ClassName.get(ParamModel.class)))
+                        .addStatement("$T params = new $T()"
+                                , ParameterizedTypeName.get(ClassName.get(List.class), ClassName.get(ParamModel.class))
+                                , ArrayList.class);
+                parametersList = methodModel.getParams();
+
+                if (null != parametersList) {
+                    for (ParamModel paramType : parametersList) {
+                        if (null != paramType.getParamMirror()) {
+                            methodParams.addStatement("params.add(new $T($T.class,null))", ParamModel.class, TypeName.get((TypeMirror) paramType.getParamMirror()));
+                        } else {
+                            methodParams.addStatement("params.add(new $T(com.alibaba.android.arouter.facade.model.MethodCallback.class,null))", ParamModel.class);
+
+                        }
+                    }
+                    methodParams.addStatement("return params");
+                } else {
+                    methodParams.addStatement("params = null");
+                    methodParams.addStatement("return params");
+                }
+                methodLoad.addStatement("methods.add(new $T($S,$L()))", MethodModel.class, methodModel.getMethodName(), paramsMethodName);
+                // ruan add  loadMethodxxxxParams
+                classBuilder.addMethod(methodParams.build());
+            }
+            // ruan add  loadMethodInfo
+            classBuilder.addMethod(methodLoad.build());
+            // create class file like ARouter$$Service$$Ruan$$Method.java
+            JavaFile.builder(PACKAGE_OF_GENERATE_FILE, classBuilder.build()).build().writeTo(mFiler);
+        }
+
+    }
+
+    private void parseMethod(Element element, RouteMeta routeMeta) {
+
+        String className = ((TypeElement) element).getQualifiedName().toString();
+
+        List<? extends Element> providerChildElements = element.getEnclosedElements();
+        List<? extends VariableElement> parameters;
+
+        String methodName;
+        for (Element providerChildElement : providerChildElements) {// check each filed of provider
+            if (TypeUtils.isMethodAndAnnotatedByTargetType(providerChildElement, type_method)) { //filed is a method and annotated by @Method or @AsynMethod
+                providerPaths.put(className, routeMeta.getPath());
+                parameters = ((ExecutableElement) providerChildElement).getParameters();
+                methodName = providerChildElement.getSimpleName().toString();
+                List<MethodModel> methodModels = methods.get(className);
+                if (null == methodModels) {
+                    methodModels = new ArrayList<>(5);
+                    methods.put(className, methodModels);
+                }
+                List<ParamModel> parametersList = null;
+                for (VariableElement parameter : parameters) {
+                    if (null == parametersList) {
+                        parametersList = new ArrayList<>();
+                    }
+                    if (TypeUtils.isParameterAndAnnotatedByTargetType(parameter, type_methodCallbackAnnotation)) {
+                        parametersList.add(new ParamModel(null, null));
+                    } else {
+                        parametersList.add(new ParamModel(null, parameter.asType()));
+                    }
+                }
+                methodModels.add(new MethodModel(methodName, parametersList));
+            }
+        }
+
     }
 
     /**

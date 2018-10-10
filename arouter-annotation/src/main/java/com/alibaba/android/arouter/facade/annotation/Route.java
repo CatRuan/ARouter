@@ -17,28 +17,27 @@ import java.lang.annotation.Target;
 public @interface Route {
 
     /**
-     * Path of route
+     * 路由地址
      */
     String path();
 
     /**
-     * Used to merger routes, the group name MUST BE USE THE COMMON WORDS !!!
+     * 将路由节点进行分组，可以实现按组动态加载
      */
     String group() default "";
 
     /**
-     * Name of route, used to generate javadoc.
+     * 路由名称，用于生成文档
      */
-    String name() default "";
+    String name() default "undefined";
 
     /**
-     * Extra data, can be set by user.
-     * Ps. U should use the integer num sign the switch, by bits. 10001010101010
+     * 用32位int类型标示，可用于页面的一些配置
      */
     int extras() default Integer.MIN_VALUE;
 
     /**
-     * The priority of route.
+     * 路由的优先级
      */
     int priority() default -1;
 }

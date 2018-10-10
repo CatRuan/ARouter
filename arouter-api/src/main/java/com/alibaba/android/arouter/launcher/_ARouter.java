@@ -14,25 +14,33 @@ import android.widget.Toast;
 
 import com.alibaba.android.arouter.core.InstrumentationHook;
 import com.alibaba.android.arouter.core.LogisticsCenter;
+import com.alibaba.android.arouter.exception.CallMethodException;
 import com.alibaba.android.arouter.exception.HandlerException;
 import com.alibaba.android.arouter.exception.InitException;
 import com.alibaba.android.arouter.exception.NoRouteFoundException;
 import com.alibaba.android.arouter.facade.Postcard;
 import com.alibaba.android.arouter.facade.callback.InterceptorCallback;
 import com.alibaba.android.arouter.facade.callback.NavigationCallback;
+import com.alibaba.android.arouter.facade.model.MethodModel;
 import com.alibaba.android.arouter.facade.service.AutowiredService;
 import com.alibaba.android.arouter.facade.service.DegradeService;
 import com.alibaba.android.arouter.facade.service.InterceptorService;
 import com.alibaba.android.arouter.facade.service.PathReplaceService;
 import com.alibaba.android.arouter.facade.template.ILogger;
 import com.alibaba.android.arouter.thread.DefaultPoolExecutor;
+import com.alibaba.android.arouter.utils.ClassUtils;
 import com.alibaba.android.arouter.utils.Consts;
 import com.alibaba.android.arouter.utils.DefaultLogger;
 import com.alibaba.android.arouter.utils.TextUtils;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Map;
 import java.util.concurrent.ThreadPoolExecutor;
+
+import static com.alibaba.android.arouter.facade.enums.RouteType.ACTIVITY;
+import static com.alibaba.android.arouter.facade.enums.RouteType.PROVIDER;
 
 /**
  * ARouter core (Facade patten)
@@ -49,7 +57,6 @@ final class _ARouter {
     private volatile static _ARouter instance = null;
     private volatile static boolean hasInit = false;
     private volatile static ThreadPoolExecutor executor = DefaultPoolExecutor.getInstance();
-    private static Handler mHandler;
     private static Context mContext;
 
     private static InterceptorService interceptorService;
@@ -62,7 +69,6 @@ final class _ARouter {
         LogisticsCenter.init(mContext, executor);
         logger.info(Consts.TAG, "ARouter init success!");
         hasInit = true;
-        mHandler = new Handler(Looper.getMainLooper());
 
         // It's not a good idea.
         // if (Build.VERSION.SDK_INT > Build.VERSION_CODES.ICE_CREAM_SANDWICH) {
@@ -253,14 +259,8 @@ final class _ARouter {
             Postcard postcard = LogisticsCenter.buildProvider(service.getName());
 
             // Compatible 1.0.5 compiler sdk.
-            // Earlier versions did not use the fully qualified name to get the service
-            if (null == postcard) {
-                // No service, or this service in old version.
+            if (null == postcard) { // No service, or this service in old version.
                 postcard = LogisticsCenter.buildProvider(service.getSimpleName());
-            }
-
-            if (null == postcard) {
-                return null;
             }
 
             LogisticsCenter.completion(postcard);
@@ -269,6 +269,83 @@ final class _ARouter {
             logger.warning(Consts.TAG, ex.getMessage());
             return null;
         }
+    }
+
+    public Object call(Context context, Postcard postcard, String methodName, Object[] params) {
+        try {
+            LogisticsCenter.completion(postcard);
+            return _call(context, postcard, methodName, params);
+        } catch (NoRouteFoundException ex) {
+            logger.warning(Consts.TAG, ex.getMessage());
+            if (debuggable()) { // Show friendly tips for user.
+                Toast.makeText(mContext, "There's no route matched!\n" +
+                        " Path = [" + postcard.getPath() + "]\n" +
+                        " Group = [" + postcard.getGroup() + "]", Toast.LENGTH_LONG).show();
+            }
+            return null;
+        } catch (CallMethodException ex) {
+            logger.warning(Consts.TAG, ex.getMessage());
+            if (debuggable()) { // Show friendly tips for user.
+                Toast.makeText(mContext, "There's no Method matched!\n" +
+                                " Path = [" + postcard.getPath() + "]\n" +
+                                " Group = [" + postcard.getGroup() + "]\n" +
+                                " Method = [" + methodName + "]\n" +
+                                " prams = [" + params.toString() + "]",
+                        Toast.LENGTH_LONG).show();
+            }
+            return null;
+        }
+    }
+
+
+    private Object _call(final Context context, final Postcard postcard, String methodName, Object[] params) throws CallMethodException {
+        if (postcard.getType() == PROVIDER) {
+            Class target = postcard.getDestination();
+            Object targetObj = postcard.getProvider();
+            return callMethod(postcard, methodName, params, target, targetObj);
+        } else if (postcard.getType() == ACTIVITY) {
+            Activity topActivity = ClassUtils.getTopActivity();
+            Class topClass = topActivity.getClass();
+            Class targetClass = postcard.getDestination();
+            //todo  仅仅支持栈顶actvity是目标actvitiy的情况
+            //todo 可以扩展栈顶activity是目标activity的子类（因为子类一定包含父类的方法）
+            if (topClass == targetClass) {
+                return callMethod(postcard, methodName, params, topClass, topActivity);
+            } else {
+                throw new CallMethodException(2, "target Activity [" + targetClass + "] is not top Activity");
+            }
+        }
+        return null;
+    }
+
+    private Object callMethod(Postcard postcard, String methodName, Object[] params, Class target, Object targetObj) throws CallMethodException {
+        try {
+            if (null == postcard.getMethods()) {
+                throw new CallMethodException(1, "method does not exist");
+            }
+            for (MethodModel methodModel : postcard.getMethods()) {
+                if (methodModel.getMethodName().equals(methodName)) {
+                    Method method;
+                    if (null != params && params.length > 0) {
+                        method = target.getDeclaredMethod(methodName, methodModel.getParamsClass());
+                        return method.invoke(targetObj, params);
+                    } else {
+                        method = target.getDeclaredMethod(methodName);
+                        return method.invoke(targetObj);
+                    }
+                }
+            }
+        } catch (NoSuchMethodException e) {
+            e.printStackTrace();
+            throw new CallMethodException(1, e.getMessage());
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+            throw new CallMethodException(1, e.getMessage());
+        } catch (InvocationTargetException e) {
+            e.printStackTrace();
+            throw new CallMethodException(1, e.getMessage());
+        }
+        throw new CallMethodException(1, "method does not exist");
     }
 
     /**
@@ -340,6 +417,7 @@ final class _ARouter {
         return null;
     }
 
+
     private Object _navigation(final Context context, final Postcard postcard, final int requestCode, final NavigationCallback callback) {
         final Context currentContext = null == context ? mContext : context;
 
@@ -364,16 +442,24 @@ final class _ARouter {
                 }
 
                 // Navigation in main looper.
-                if (Looper.getMainLooper().getThread() != Thread.currentThread()) {
-                    mHandler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            startActivity(requestCode, currentContext, intent, postcard, callback);
+                new Handler(Looper.getMainLooper()).post(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (requestCode > 0) {  // Need start for result
+                            ActivityCompat.startActivityForResult((Activity) currentContext, intent, requestCode, postcard.getOptionsBundle());
+                        } else {
+                            ActivityCompat.startActivity(currentContext, intent, postcard.getOptionsBundle());
                         }
-                    });
-                } else {
-                    startActivity(requestCode, currentContext, intent, postcard, callback);
-                }
+
+                        if ((-1 != postcard.getEnterAnim() && -1 != postcard.getExitAnim()) && currentContext instanceof Activity) {    // Old version.
+                            ((Activity) currentContext).overridePendingTransition(postcard.getEnterAnim(), postcard.getExitAnim());
+                        }
+
+                        if (null != callback) { // Navigation over.
+                            callback.onArrival(postcard);
+                        }
+                    }
+                });
 
                 break;
             case PROVIDER:
@@ -403,19 +489,4 @@ final class _ARouter {
         return null;
     }
 
-    private void startActivity(int requestCode, Context currentContext, Intent intent, Postcard postcard, NavigationCallback callback) {
-        if (requestCode >= 0) {  // Need start for result
-            ActivityCompat.startActivityForResult((Activity) currentContext, intent, requestCode, postcard.getOptionsBundle());
-        } else {
-            ActivityCompat.startActivity(currentContext, intent, postcard.getOptionsBundle());
-        }
-
-        if ((-1 != postcard.getEnterAnim() && -1 != postcard.getExitAnim()) && currentContext instanceof Activity) {    // Old version.
-            ((Activity) currentContext).overridePendingTransition(postcard.getEnterAnim(), postcard.getExitAnim());
-        }
-
-        if (null != callback) { // Navigation over.
-            callback.onArrival(postcard);
-        }
-    }
 }

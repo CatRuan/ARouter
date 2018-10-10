@@ -12,13 +12,16 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Toast;
 
+import com.alibaba.android.arouter.demo.module1.bean.TestBean;
 import com.alibaba.android.arouter.demo.testinject.TestObj;
 import com.alibaba.android.arouter.demo.testinject.TestParcelable;
-import com.alibaba.android.arouter.demo.testinject.TestSerializable;
 import com.alibaba.android.arouter.demo.testservice.HelloService;
 import com.alibaba.android.arouter.demo.testservice.SingleService;
 import com.alibaba.android.arouter.facade.Postcard;
+import com.alibaba.android.arouter.facade.annotation.Method;
+import com.alibaba.android.arouter.facade.annotation.Route;
 import com.alibaba.android.arouter.facade.callback.NavCallback;
+import com.alibaba.android.arouter.facade.model.MethodCallback;
 import com.alibaba.android.arouter.launcher.ARouter;
 
 import java.util.ArrayList;
@@ -26,6 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@Route(path = "/service/act")
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
 
     private static Activity activity;
@@ -34,7 +38,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
         activity = this;
     }
 
@@ -66,11 +69,11 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 ARouter.init(getApplication());
                 break;
             case R.id.normalNavigation:
-                ARouter.getInstance()
-                        .build("/test/activity2")
-                        .navigation();
+                //简单的应用内跳转
+                ARouter.getInstance().build("/test/activity2").navigation();
                 break;
             case R.id.kotlinNavigation:
+                //跳转到Kotlin页面
                 ARouter.getInstance()
                         .build("/kotlin/test")
                         .withString("name", "老王")
@@ -78,6 +81,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                         .navigation();
                 break;
             case R.id.normalNavigationWithParams:
+                //携带参数的应用内跳转
                 // ARouter.getInstance()
                 //         .build("/test/activity2")
                 //         .withString("key1", "value1")
@@ -90,12 +94,15 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
                 break;
             case R.id.oldVersionAnim:
+                //旧版本转场动画
                 ARouter.getInstance()
                         .build("/test/activity2")
                         .withTransition(R.anim.slide_in_bottom, R.anim.slide_out_bottom)
                         .navigation(this);
                 break;
             case R.id.newVersionAnim:
+                //新版本转场动画
+                // todo 查看activity跳转动画
                 if (Build.VERSION.SDK_INT >= 16) {
                     ActivityOptionsCompat compat = ActivityOptionsCompat.
                             makeScaleUpAnimation(v, v.getWidth() / 2, v.getHeight() / 2, 0, 0);
@@ -109,6 +116,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 }
                 break;
             case R.id.interceptor:
+                // 拦截器测试
                 ARouter.getInstance()
                         .build("/test/activity4")
                         .navigation(this, new NavCallback() {
@@ -124,13 +132,14 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                         });
                 break;
             case R.id.navByUrl:
+                // 通过URL跳转
                 ARouter.getInstance()
                         .build("/test/webview")
                         .withString("url", "file:///android_asset/schame-test.html")
                         .navigation();
                 break;
             case R.id.autoInject:
-                TestSerializable testSerializable = new TestSerializable("Titanic", 555);
+                //依赖注入(参照代码)
                 TestParcelable testParcelable = new TestParcelable("jack", 666);
                 TestObj testObj = new TestObj("Rose", 777);
                 List<TestObj> objList = new ArrayList<>();
@@ -145,7 +154,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                         .withBoolean("boy", true)
                         .withLong("high", 180)
                         .withString("url", "https://a.b.c")
-                        .withSerializable("ser", testSerializable)
                         .withParcelable("pac", testParcelable)
                         .withObject("obj", testObj)
                         .withObject("objList", objList)
@@ -153,22 +161,66 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                         .navigation();
                 break;
             case R.id.navByName:
+                // ByName调用服务
                 ((HelloService) ARouter.getInstance().build("/service/hello").navigation()).sayHello("mike");
                 break;
             case R.id.navByType:
+                // ByType调用服务
                 ARouter.getInstance().navigation(HelloService.class).sayHello("mike");
                 break;
+            case R.id.synCallMethod1:// 同步方法调用（无参数/无返回）
+                ARouter.getInstance().build("/module/service").call("test1");
+                break;
+            case R.id.synCallMethod2:// 同步方法调用（带参数/无返回）
+                ARouter.getInstance().build("/module/service").call("test2", 111, "小阮");
+                break;
+            case R.id.synCallMethod3:// 同步方法调用（带参数/有返回）
+                Object result = ARouter.getInstance().build("/module/service").call("test3", 1111, "小阮", new TestBean(-111, "down"));
+                Log.i("ruan", "调用test3,返回值：" + result);
+                break;
+            case R.id.synCallMethod4:// 同步方法调用（无参数/有返回）
+                Object result2 = ARouter.getInstance().build("/module/service").call("test4");
+                Log.i("ruan", "调用test4,返回值：" + result2.toString());
+                break;
+            case R.id.synCallMethod5:// 同步方法调用（无参数/有返回）
+                ARouter.getInstance()
+                        .build("/module/service")
+                        .call("test5", "参数1", new MethodCallback<TestBean>() {
+
+                            @Override
+                            public void onNext(Object... object) {
+
+                            }
+
+                            @Override
+                            public void onError(String errorMsg) {
+
+                            }
+
+                            @Override
+                            public void onComplete(TestBean result) {
+                                Log.i("ruan", "调用test5,返回值：" + result.toString());
+                            }
+                        });
+                break;
+            case R.id.synCallMethod6:// 调用activity的方法
+                ARouter.getInstance().build("/service/act").call("testActivity");
+                break;
             case R.id.navToMoudle1:
+                // 跳转到模块1
                 ARouter.getInstance().build("/module/1").navigation();
                 break;
             case R.id.navToMoudle2:
+                // 跳转到模块2
                 // 这个页面主动指定了Group名
                 ARouter.getInstance().build("/module/2", "m2").navigation();
                 break;
             case R.id.destroy:
+                // 关闭ARouter
                 ARouter.getInstance().destroy();
                 break;
             case R.id.failNav:
+                // 跳转失败，单独降级
                 ARouter.getInstance().build("/xxx/xxx").navigation(this, new NavCallback() {
                     @Override
                     public void onFound(Postcard postcard) {
@@ -192,20 +244,25 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 });
                 break;
             case R.id.callSingle:
+                // 调用单类
                 ARouter.getInstance().navigation(SingleService.class).sayHello("Mike");
                 break;
             case R.id.failNav2:
+                // 跳转失败，全局降级
                 ARouter.getInstance().build("/xxx/xxx").navigation();
                 break;
             case R.id.failNav3:
+                // 服务调用失败
                 ARouter.getInstance().navigation(MainActivity.class);
                 break;
             case R.id.normalNavigation2:
+                // 跳转ForResult
                 ARouter.getInstance()
                         .build("/test/activity2")
                         .navigation(this, 666);
                 break;
             case R.id.getFragment:
+                // 获取Fragment实例
                 Fragment fragment = (Fragment) ARouter.getInstance().build("/test/fragment").navigation();
                 Toast.makeText(this, "找到Fragment:" + fragment.toString(), Toast.LENGTH_SHORT).show();
                 break;
@@ -225,5 +282,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             default:
                 break;
         }
+    }
+
+    @Method
+    public void testActivity() {
+        Log.i("ruan", "testActivity--");
     }
 }

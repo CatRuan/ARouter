@@ -2,8 +2,8 @@ apply plugin: 'com.android.library'
 
 dependencies {
     compile project(':arouter-api')
-    annotationProcessor project(':arouter-compiler')
     compile "com.android.support:appcompat-v7:${SUPPORT_LIB_VERSION}"
+    annotationProcessor project(':arouter-compiler')
 }
 android {
     compileSdkVersion Integer.parseInt(COMPILE_SDK_VERSION)
@@ -15,7 +15,7 @@ android {
 
         javaCompileOptions {
             annotationProcessorOptions {
-                arguments = [ AROUTER_MODULE_NAME : project.getName() ]
+                arguments = [ moduleName : project.getName() ]
             }
         }
     }

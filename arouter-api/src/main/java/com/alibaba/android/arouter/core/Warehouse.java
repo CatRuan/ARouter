@@ -1,6 +1,7 @@
 package com.alibaba.android.arouter.core;
 
 import com.alibaba.android.arouter.base.UniqueKeyTreeMap;
+import com.alibaba.android.arouter.facade.model.MethodModel;
 import com.alibaba.android.arouter.facade.model.RouteMeta;
 import com.alibaba.android.arouter.facade.template.IInterceptor;
 import com.alibaba.android.arouter.facade.template.IProvider;
@@ -20,14 +21,25 @@ import java.util.Map;
  */
 class Warehouse {
     // Cache route and metas
+    /**
+     * <组名 ,IRouteGroup.class>  routes.put("service", ARouter$$Group$$service.class);
+     */
     static Map<String, Class<? extends IRouteGroup>> groupsIndex = new HashMap<>();
+
+    /**
+     * atlas.put("/service/single", RouteMeta.build(RouteType.PROVIDER, SingleService.class, "/service/single", "service", null, -1, -2147483648));
+     */
     static Map<String, RouteMeta> routes = new HashMap<>();
 
+    static Map<String, List<MethodModel>> methods = new HashMap<>();
     // Cache provider
     static Map<Class, IProvider> providers = new HashMap<>();
     static Map<String, RouteMeta> providersIndex = new HashMap<>();
 
     // Cache interceptor
+    /**
+     * interceptors.put(7, Test1Interceptor.class);
+     */
     static Map<Integer, Class<? extends IInterceptor>> interceptorsIndex = new UniqueKeyTreeMap<>("More than one interceptors use same priority [%s]");
     static List<IInterceptor> interceptors = new ArrayList<>();
 
@@ -38,5 +50,6 @@ class Warehouse {
         providersIndex.clear();
         interceptors.clear();
         interceptorsIndex.clear();
+        methods.clear();
     }
 }

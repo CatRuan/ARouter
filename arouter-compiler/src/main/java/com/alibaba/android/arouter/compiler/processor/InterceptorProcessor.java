@@ -3,6 +3,7 @@ package com.alibaba.android.arouter.compiler.processor;
 import com.alibaba.android.arouter.compiler.utils.Consts;
 import com.alibaba.android.arouter.compiler.utils.Logger;
 import com.alibaba.android.arouter.facade.annotation.Interceptor;
+import com.alibaba.android.arouter.facade.model.MethodModel;
 import com.google.auto.service.AutoService;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.JavaFile;

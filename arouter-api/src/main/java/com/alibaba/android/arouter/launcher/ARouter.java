@@ -4,12 +4,14 @@ import android.app.Application;
 import android.content.Context;
 import android.net.Uri;
 
+import com.alibaba.android.arouter.exception.CallMethodException;
 import com.alibaba.android.arouter.exception.InitException;
 import com.alibaba.android.arouter.facade.Postcard;
 import com.alibaba.android.arouter.facade.callback.NavigationCallback;
 import com.alibaba.android.arouter.facade.template.ILogger;
 import com.alibaba.android.arouter.utils.Consts;
 
+import java.util.Map;
 import java.util.concurrent.ThreadPoolExecutor;
 
 /**
@@ -181,5 +183,9 @@ public final class ARouter {
      */
     public Object navigation(Context mContext, Postcard postcard, int requestCode, NavigationCallback callback) {
         return _ARouter.getInstance().navigation(mContext, postcard, requestCode, callback);
+    }
+
+    public Object call(Context context, Postcard postcard, String methodName, Object[] params) {
+        return _ARouter.getInstance().call(context, postcard, methodName, params);
     }
 }

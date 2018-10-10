@@ -2,7 +2,7 @@
     一个用于帮助 Android App 进行组件化改造的框架 —— 支持模块间的路由、通信、解耦
 ```
 
-[English](https://github.com/alibaba/ARouter/blob/master/README.md)
+[English](https://raw.githubusercontent.com/alibaba/ARouter/master/README.md)
 
 ##### [![Join the chat at https://gitter.im/alibaba/ARouter](https://badges.gitter.im/alibaba/ARouter.svg)](https://gitter.im/alibaba/ARouter?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![Hex.pm](https://img.shields.io/hexpm/l/plug.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 
@@ -10,9 +10,9 @@
 
 #### 最新版本
 
-模块|arouter-api|arouter-compiler|arouter-register
----|---|---|---
-最新版本|[![Download](https://api.bintray.com/packages/zhi1ong/maven/arouter-api/images/download.svg)](https://bintray.com/zhi1ong/maven/arouter-api/_latestVersion)|[![Download](https://api.bintray.com/packages/zhi1ong/maven/arouter-compiler/images/download.svg)](https://bintray.com/zhi1ong/maven/arouter-compiler/_latestVersion)|[![Download](https://api.bintray.com/packages/zhi1ong/maven/arouter-register/images/download.svg)](https://bintray.com/zhi1ong/maven/arouter-register/_latestVersion)
+模块|arouter-api|arouter-compiler|arouter-annotation|arouter-register
+---|---|---|---|---
+最新版本|[![Download](https://api.bintray.com/packages/zhi1ong/maven/arouter-api/images/download.svg)](https://bintray.com/zhi1ong/maven/arouter-api/_latestVersion)|[![Download](https://api.bintray.com/packages/zhi1ong/maven/arouter-compiler/images/download.svg)](https://bintray.com/zhi1ong/maven/arouter-compiler/_latestVersion)|[![Download](https://api.bintray.com/packages/zhi1ong/maven/arouter-annotation/images/download.svg)](https://bintray.com/zhi1ong/maven/arouter-annotation/_latestVersion)|[![Download](https://api.bintray.com/packages/zhi1ong/maven/arouter-register/images/download.svg)](https://bintray.com/zhi1ong/maven/arouter-register/_latestVersion)
 
 #### Demo展示
 
@@ -32,7 +32,6 @@
 11. 支持获取Fragment
 12. 完全支持Kotlin以及混编(配置见文末 其他#5)
 13. **支持第三方 App 加固**(使用 arouter-register 实现自动注册)
-14. **支持生成路由文档**
 
 #### 二、典型应用
 1. 从外部URL映射到内部页面，以及参数传递与解析
@@ -45,12 +44,12 @@
 ``` gradle
 android {
     defaultConfig {
-        ...
-        javaCompileOptions {
-            annotationProcessorOptions {
-                arguments = [AROUTER_MODULE_NAME: project.getName()]
-            }
-        }
+	...
+	javaCompileOptions {
+	    annotationProcessorOptions {
+		arguments = [ moduleName : project.getName() ]
+	    }
+	}
     }
 }
 
@@ -119,14 +118,13 @@ buildscript {
     }
 
     dependencies {
-        classpath "com.alibaba:arouter-register:?"
+        classpath "com.alibaba:arouter-register:1.0.0"
     }
 }
 ```
-
-可选使用，通过 ARouter 提供的注册插件进行路由表的自动加载(power by [AutoRegister](https://github.com/luckybilly/AutoRegister))， 默认通过扫描 dex 的方式
+可选使用，通过 ARouter 提供的注册插件进行路由表的自动加载，默认通过扫描 dex 的方式
 进行加载通过 gradle 插件进行自动注册可以缩短初始化时间解决应用加固导致无法直接访问
-dex 文件，初始化失败的问题，需要注意的是，该插件必须搭配 api 1.3.0 以上版本使用！
+dex 文件，初始化失败的问题，需要注意的是，该插件必须搭配 api 1.3.0 使用！
 
 #### 四、进阶用法
 1. 通过URL跳转
@@ -187,7 +185,7 @@ public class Test1Activity extends Activity {
 }
 
 
-// 如果需要传递自定义对象，新建一个类（并非自定义对象类），然后实现 SerializationService,并使用@Route注解标注(方便用户自行选择序列化方式)，例如：
+// 如果需要传递自定义对象，需要实现 SerializationService,并使用@Route注解标注(方便用户自行选择序列化方式)，例如：
 @Route(path = "/service/json")
 public class JsonServiceImpl implements SerializationService {
     @Override
@@ -398,9 +396,6 @@ ARouter.getInstance().build("/home/main").greenChannel().navigation();
 
 // 使用自己的日志工具打印日志
 ARouter.setLogger();
-
-// 使用自己提供的线程池
-ARouter.setExecutor();
 ```
 
 3. 获取原始的URI
@@ -433,22 +428,6 @@ public class PathReplaceServiceImpl implements PathReplaceService {
 }
 ```
 
-5. 生成路由文档
-``` gradle
-// 更新 build.gradle, 添加参数 AROUTER_GENERATE_DOC = enable
-// 生成的文档路径 : build/generated/source/apt/(debug or release)/com/alibaba/android/arouter/docs/arouter-map-of-${moduleName}.json
-android {
-    defaultConfig {
-        ...
-        javaCompileOptions {
-            annotationProcessorOptions {
-                arguments = [AROUTER_MODULE_NAME: project.getName(), AROUTER_GENERATE_DOC: "enable"]
-            }
-        }
-    }
-}
-```
-
 #### 六、其他
 
 1. 路由中的分组概念
@@ -466,7 +445,12 @@ android {
 	- 拦截器因为其特殊性，会被任何一次路由所触发，拦截器会在ARouter初始化的时候异步初始化，如果第一次路由的时候拦截器还没有初始化结束，路由会等待，直到初始化完成。
 	- 服务没有该限制，某一服务可能在App整个生命周期中都不会用到，所以服务只有被调用的时候才会触发初始化操作
 
-3. 旧版本gradle插件的配置方式
+3. Jack 编译链的支持
+
+	- ~~因为不想让用户主动设置一堆乱七八糟的参数，在获取模块名的时候使用javac的api，使用了Jack之后没有了javac，只能让用户稍稍动动手了~~
+	- 现在任何情况下都需要在build.gradle中配置moduleName了。。。。
+
+4. 旧版本gradle插件的配置方式
 ``` gradle
 apply plugin: 'com.neenbedankt.android-apt'
 
@@ -482,7 +466,7 @@ buildscript {
 
 apt {
     arguments {
-	AROUTER_MODULE_NAME project.getName();
+	moduleName project.getName();
     }
 }
 
@@ -493,14 +477,14 @@ dependencies {
 }
 ```
 
-4. Kotlin项目中的配置方式
+5. Kotlin项目中的配置方式
 ```
 // 可以参考 module-kotlin 模块中的写法
 apply plugin: 'kotlin-kapt'
 
 kapt {
     arguments {
-        arg("AROUTER_MODULE_NAME", project.getName())
+        arg("moduleName", project.getName())
     }
 }
 
@@ -558,14 +542,22 @@ dependencies {
 
 1. 沟通和交流
 
-    1. 钉钉交流群1
+    1. 交流群1 (已满，请加2群)
     
-        ![qq](https://raw.githubusercontent.com/alibaba/ARouter/master/demo/dingding-group-1.png)
+        ![qq](https://raw.githubusercontent.com/alibaba/ARouter/master/demo/arouter-qq-addr.png)
 
-    2. QQ 交流群1
-    
-        ![qq](https://raw.githubusercontent.com/alibaba/ARouter/master/demo/qq-group-1.png)
-
-    3. QQ 交流群2
+    2. 交流群2
         
-        ![qq](https://raw.githubusercontent.com/alibaba/ARouter/master/demo/qq-group-2.png)
+        ![qq](https://raw.githubusercontent.com/alibaba/ARouter/master/demo/qq-qrcode-2.JPG)
+
+#### 九、代码贡献 (排名不分先后，时间顺序)
+
+1. [imknown](https://github.com/alibaba/ARouter/commits?author=imknown) : 优化文档格式
+
+2. [crazy1235](https://github.com/crazy1235) : 自动注入支持优先使用默认值
+
+3. [luckybilly](https://github.com/luckybilly) : 通过 Transform API 实现路由表自动注册
+
+4. [LinXiaoTao](https://github.com/LinXiaoTao) : postcard transition support 0
+
+5. [tanglie1993](https://github.com/tanglie1993) : 修正拼写和语法错误

@@ -1,6 +1,5 @@
 package com.alibaba.android.arouter.facade.model;
 
-import com.alibaba.android.arouter.facade.annotation.Autowired;
 import com.alibaba.android.arouter.facade.annotation.Route;
 import com.alibaba.android.arouter.facade.enums.RouteType;
 
@@ -16,17 +15,15 @@ import javax.lang.model.element.Element;
  * @since 16/8/24 09:45
  */
 public class RouteMeta {
-    private RouteType type;         // Type of route
+    private RouteType type;         // 路由类型
     private Element rawType;        // Raw type of route
-    private Class<?> destination;   // Destination
-    private String path;            // Path of route
-    private String group;           // Group of route
-    private int priority = -1;      // The smaller the number, the higher the priority
-    private int extra;              // Extra data
-    private Map<String, Integer> paramsType;  // Param type
-    private String name;
-
-    private Map<String, Autowired> injectConfig;  // Cache inject config.
+    private Class<?> destination;   // 类
+    private String path;            // 路由地址
+    private String group;           // 路由组
+    private int priority = -1;      // 路由优先级
+    private int extra;              // 额外数据 32位的int
+    private Map<String, Integer> paramsType;  // 参数类型
+    private Class<?> methodClass; //方法所在类
 
     public RouteMeta() {
     }
@@ -43,7 +40,7 @@ public class RouteMeta {
      * @return this
      */
     public static RouteMeta build(RouteType type, Class<?> destination, String path, String group, int priority, int extra) {
-        return new RouteMeta(type, null, destination, null, path, group, null, priority, extra);
+        return new RouteMeta(type, null, destination, path, group, null, priority, extra);
     }
 
     /**
@@ -59,7 +56,23 @@ public class RouteMeta {
      * @return this
      */
     public static RouteMeta build(RouteType type, Class<?> destination, String path, String group, Map<String, Integer> paramsType, int priority, int extra) {
-        return new RouteMeta(type, null, destination, null, path, group, paramsType, priority, extra);
+        return new RouteMeta(type, null, destination, path, group, paramsType, priority, extra);
+    }
+
+    /**
+     * For versions of 'compiler' greater than 1.0.7
+     *
+     * @param type        type
+     * @param destination destination
+     * @param path        path
+     * @param group       group
+     * @param paramsType  paramsType
+     * @param priority    priority
+     * @param extra       extra
+     * @return this
+     */
+    public static RouteMeta build(RouteType type, Class<?> destination, String path, String group, Map<String, Integer> paramsType, int priority, int extra, Class<?> methodClass) {
+        return new RouteMeta(type, null, destination, path, group, paramsType, priority, extra, methodClass);
     }
 
     /**
@@ -70,7 +83,7 @@ public class RouteMeta {
      * @param type        type
      */
     public RouteMeta(Route route, Class<?> destination, RouteType type) {
-        this(type, null, destination, route.name(), route.path(), route.group(), null, route.priority(), route.extras());
+        this(type, null, destination, route.path(), route.group(), null, route.priority(), route.extras());
     }
 
     /**
@@ -82,7 +95,7 @@ public class RouteMeta {
      * @param paramsType paramsType
      */
     public RouteMeta(Route route, Element rawType, RouteType type, Map<String, Integer> paramsType) {
-        this(type, rawType, null, route.name(), route.path(), route.group(), paramsType, route.priority(), route.extras());
+        this(type, rawType, null, route.path(), route.group(), paramsType, route.priority(), route.extras());
     }
 
     /**
@@ -97,9 +110,8 @@ public class RouteMeta {
      * @param priority    priority
      * @param extra       extra
      */
-    public RouteMeta(RouteType type, Element rawType, Class<?> destination, String name, String path, String group, Map<String, Integer> paramsType, int priority, int extra) {
+    public RouteMeta(RouteType type, Element rawType, Class<?> destination, String path, String group, Map<String, Integer> paramsType, int priority, int extra) {
         this.type = type;
-        this.name = name;
         this.destination = destination;
         this.rawType = rawType;
         this.path = path;
@@ -109,6 +121,30 @@ public class RouteMeta {
         this.extra = extra;
     }
 
+    /**
+     * Type
+     *
+     * @param type        type
+     * @param rawType     rawType
+     * @param destination destination
+     * @param path        path
+     * @param group       group
+     * @param paramsType  paramsType
+     * @param priority    priority
+     * @param extra       extra
+     */
+    public RouteMeta(RouteType type, Element rawType, Class<?> destination, String path, String group, Map<String, Integer> paramsType, int priority, int extra, Class<?> methodClass) {
+        this.type = type;
+        this.destination = destination;
+        this.rawType = rawType;
+        this.path = path;
+        this.group = group;
+        this.paramsType = paramsType;
+        this.priority = priority;
+        this.extra = extra;
+        this.methodClass = methodClass;
+    }
+
     public Map<String, Integer> getParamsType() {
         return paramsType;
     }
@@ -116,14 +152,6 @@ public class RouteMeta {
     public RouteMeta setParamsType(Map<String, Integer> paramsType) {
         this.paramsType = paramsType;
         return this;
-    }
-
-    public Map<String, Autowired> getInjectConfig() {
-        return injectConfig;
-    }
-
-    public void setInjectConfig(Map<String, Autowired> injectConfig) {
-        this.injectConfig = injectConfig;
     }
 
     public Element getRawType() {
@@ -189,12 +217,8 @@ public class RouteMeta {
         return this;
     }
 
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
+    public Class<?> getMethodClass() {
+        return methodClass;
     }
 
     @Override
@@ -207,8 +231,6 @@ public class RouteMeta {
                 ", group='" + group + '\'' +
                 ", priority=" + priority +
                 ", extra=" + extra +
-                ", paramsType=" + paramsType +
-                ", name='" + name + '\'' +
                 '}';
     }
 }

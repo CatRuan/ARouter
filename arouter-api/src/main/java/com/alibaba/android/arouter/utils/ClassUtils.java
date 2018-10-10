@@ -2,24 +2,31 @@ package com.alibaba.android.arouter.utils;
 
 // Copy from galaxy sdk ${com.alibaba.android.galaxy.utils.ClassUtils}
 
+import android.app.Activity;
+import android.app.ActivityManager;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.os.Build;
+import android.os.Parcelable;
 import android.util.Log;
 
+import com.alibaba.android.arouter.facade.enums.TypeKind;
 import com.alibaba.android.arouter.launcher.ARouter;
 import com.alibaba.android.arouter.thread.DefaultPoolExecutor;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.regex.Matcher;
@@ -60,6 +67,15 @@ public class ClassUtils {
     public static Set<String> getFileNameByPackageName(Context context, final String packageName) throws PackageManager.NameNotFoundException, IOException, InterruptedException {
         final Set<String> classNames = new HashSet<>();
 
+        /**
+         *  paths： 打开device file exploer 看到的就是这些文件
+         * /data/app/com.alibaba.android.arouter.demo-hj5b_HfMmu81VRk-0lsCmA==/base.apk
+         * /data/app/com.alibaba.android.arouter.demo-hj5b_HfMmu81VRk-0lsCmA==/split_lib_dependencies_apk.apk
+         * /data/app/com.alibaba.android.arouter.demo-hj5b_HfMmu81VRk-0lsCmA==/split_lib_slice_0_apk.apk
+         * /data/app/com.alibaba.android.arouter.demo-hj5b_HfMmu81VRk-0lsCmA==/split_lib_slice_1_apk.apk
+         * /data/app/com.alibaba.android.arouter.demo-hj5b_HfMmu81VRk-0lsCmA==/split_lib_slice_2_apk.apk
+         * ……
+         */
         List<String> paths = getSourcePaths(context);
         final CountDownLatch parserCtl = new CountDownLatch(paths.size());
 
@@ -122,6 +138,10 @@ public class ClassUtils {
         sourcePaths.add(applicationInfo.sourceDir); //add the default apk path
 
         //the prefix of extracted file, ie: test.classes
+        /**
+         *
+         * /data/app/com.alibaba.android.arouter.demo-8sb2ii_JCSvS0VUi_AJ_Hw==/base.apk
+         */
         String extractedFilePrefix = sourceApk.getName() + EXTRACTED_NAME_EXT;
 
 //        如果VM已经支持了MultiDex，就不要去Secondary Folder加载 Classesx.zip了，那里已经么有了
@@ -238,5 +258,87 @@ public class ClassUtils {
         } catch (Exception ignore) {
             return false;
         }
+    }
+
+    public static Class<?>[] typeExchange(List<Integer> params) {
+        if (null != params && params.size() > 0) {
+            Class<?>[] cls = new Class[params.size()];
+            for (int i = 0; i < params.size(); i++) {
+                cls[i] = typeExchange(params.get(i));
+            }
+            return cls;
+        }
+        return null;
+    }
+
+    public static Object[] objectExchange(Map<String, Object> params) {
+        if (null != params && params.size() > 0) {
+            Object[] objects = new Object[params.size()];
+            int i = 0;
+            for (String key : params.keySet()) {
+                objects[i] = params.get(key);
+                i++;
+            }
+            return objects;
+        }
+        return null;
+    }
+
+    private static Class<?> typeExchange(Integer typeDef) {
+        if (null != typeDef) {
+            if (typeDef == TypeKind.BOOLEAN.ordinal()) {
+                return boolean.class;
+            } else if (typeDef == TypeKind.BYTE.ordinal()) {
+                return byte.class;
+            } else if (typeDef == TypeKind.SHORT.ordinal()) {
+                return short.class;
+            } else if (typeDef == TypeKind.INT.ordinal()) {
+                return int.class;
+            } else if (typeDef == TypeKind.LONG.ordinal()) {
+                return long.class;
+            } else if (typeDef == TypeKind.FLOAT.ordinal()) {
+                return float.class;
+            } else if (typeDef == TypeKind.DOUBLE.ordinal()) {
+                return double.class;
+            } else if (typeDef == TypeKind.STRING.ordinal()) {
+                return String.class;
+            } else if (typeDef == TypeKind.PARCELABLE.ordinal()) {
+                return Parcelable.class;
+            } else if (typeDef == TypeKind.OBJECT.ordinal()) {
+                return Object.class;
+            }
+        }
+        return null;
+    }
+
+
+    public static Activity getTopActivity() {
+        Class activityThreadClass = null;
+
+        try {
+            activityThreadClass = Class.forName("android.app.ActivityThread");
+            Object activityThread = activityThreadClass.getMethod("currentActivityThread").invoke((Object) null);
+            Field activitiesField = activityThreadClass.getDeclaredField("mActivities");
+            activitiesField.setAccessible(true);
+            Map activities = (Map) activitiesField.get(activityThread);
+            Iterator var4 = activities.values().iterator();
+
+            while (var4.hasNext()) {
+                Object activityRecord = var4.next();
+                Class activityRecordClass = activityRecord.getClass();
+                Field pausedField = activityRecordClass.getDeclaredField("paused");
+                pausedField.setAccessible(true);
+                if (!pausedField.getBoolean(activityRecord)) {
+                    Field activityField = activityRecordClass.getDeclaredField("activity");
+                    activityField.setAccessible(true);
+                    Activity activity = (Activity) activityField.get(activityRecord);
+                    return activity;
+                }
+            }
+        } catch (Exception var10) {
+            var10.printStackTrace();
+        }
+
+        return null;
     }
 }

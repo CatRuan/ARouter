@@ -21,7 +21,6 @@ public class Consts {
     public static final String NAME_OF_INTERCEPTOR = PROJECT + SEPARATOR + "Interceptors";
     public static final String NAME_OF_AUTOWIRED = SEPARATOR + PROJECT + SEPARATOR + "Autowired";
     public static final String PACKAGE_OF_GENERATE_FILE = "com.alibaba.android.arouter.routes";
-    public static final String PACKAGE_OF_GENERATE_DOCS = "com.alibaba.android.arouter.docs";
 
     // System interface
     public static final String ACTIVITY = "android.app.Activity";
@@ -29,6 +28,9 @@ public class Consts {
     public static final String FRAGMENT_V4 = "android.support.v4.app.Fragment";
     public static final String SERVICE = "android.app.Service";
     public static final String PARCELABLE = "android.os.Parcelable";
+    public static final String METHOD = "com.alibaba.android.arouter.facade.annotation.Method";
+    public static final String METHOD_CALLBACK_ANNOTATION = "com.alibaba.android.arouter.facade.annotation.MethodCallBack";
+    public static final String METHOD_CALLBACK = "com.alibaba.android.arouter.facade.model.MethodCallback";
 
     // Java type
     private static final String LANG = "java.lang";
@@ -39,9 +41,7 @@ public class Consts {
     public static final String FLOAT = LANG + ".Float";
     public static final String DOUBEL = LANG + ".Double";
     public static final String BOOLEAN = LANG + ".Boolean";
-    public static final String CHAR = LANG + ".Character";
     public static final String STRING = LANG + ".String";
-    public static final String SERIALIZABLE = "java.io.Serializable";
 
     // Custom interface
     private static final String FACADE_PACKAGE = "com.alibaba.android.arouter.facade";
@@ -53,6 +53,7 @@ public class Consts {
     public static final String IINTERCEPTOR_GROUP = FACADE_PACKAGE + TEMPLATE_PACKAGE + ".IInterceptorGroup";
     public static final String ITROUTE_ROOT = FACADE_PACKAGE + TEMPLATE_PACKAGE + ".IRouteRoot";
     public static final String IROUTE_GROUP = FACADE_PACKAGE + TEMPLATE_PACKAGE + ".IRouteGroup";
+    public static final String IROUTE_METHOD = FACADE_PACKAGE + TEMPLATE_PACKAGE + ".IRouteMethod";
     public static final String ISYRINGE = FACADE_PACKAGE + TEMPLATE_PACKAGE + ".ISyringe";
     public static final String JSON_SERVICE = FACADE_PACKAGE + SERVICE_PACKAGE + ".SerializationService";
 
@@ -60,10 +61,7 @@ public class Consts {
     static final String PREFIX_OF_LOGGER = PROJECT + "::Compiler ";
 
     // Options of processor
-    public static final String KEY_MODULE_NAME = "AROUTER_MODULE_NAME";
-    public static final String KEY_GENERATE_DOC_NAME = "AROUTER_GENERATE_DOC";
-
-    public static final String VALUE_ENABLE = "enable";
+    public static final String KEY_MODULE_NAME = "moduleName";
 
     // Annotation type
     public static final String ANNOTATION_TYPE_INTECEPTOR = FACADE_PACKAGE + ".annotation.Interceptor";

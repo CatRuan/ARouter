@@ -12,7 +12,9 @@ import android.support.annotation.RequiresApi;
 import android.support.v4.app.ActivityOptionsCompat;
 import android.util.SparseArray;
 
+import com.alibaba.android.arouter.exception.CallMethodException;
 import com.alibaba.android.arouter.facade.callback.NavigationCallback;
+import com.alibaba.android.arouter.facade.model.MethodModel;
 import com.alibaba.android.arouter.facade.model.RouteMeta;
 import com.alibaba.android.arouter.facade.service.SerializationService;
 import com.alibaba.android.arouter.facade.template.IProvider;
@@ -22,6 +24,8 @@ import java.io.Serializable;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 /**
  * A container that contains the roadmap.
@@ -45,6 +49,7 @@ public final class Postcard extends RouteMeta {
     private Bundle optionsCompat;    // The transition animation of activity
     private int enterAnim = -1;
     private int exitAnim = -1;
+    List<MethodModel> methods;
 
     public Bundle getOptionsBundle() {
         return optionsCompat;
@@ -131,6 +136,30 @@ public final class Postcard extends RouteMeta {
         return navigation(null);
     }
 
+    public List<MethodModel> getMethods() {
+        return methods;
+    }
+
+    public void setMethods(List<MethodModel> methods) {
+        this.methods = methods;
+    }
+
+
+    /**
+     * 不跳转
+     *
+     * @param methodName method name
+     * @param params     params
+     * @return
+     */
+    public Object call(String methodName, Object... params) {
+        return call(null, methodName, params);
+    }
+
+    public Object call(Context context, String methodName, Object... params)  {
+        return ARouter.getInstance().call(context, this, methodName, params);
+    }
+
     /**
      * Navigation to the route with path in postcard.
      *
@@ -139,6 +168,7 @@ public final class Postcard extends RouteMeta {
     public Object navigation(Context context) {
         return navigation(context, null);
     }
+
 
     /**
      * Navigation to the route with path in postcard.
@@ -605,13 +635,16 @@ public final class Postcard extends RouteMeta {
                 "}\n" +
                 super.toString();
     }
+
     //增加设置intent的action
     private String action;
-    public String getAction(){
+
+    public String getAction() {
         return action;
     }
-    public Postcard withAction(String action){
-        this.action=action;
+
+    public Postcard withAction(String action) {
+        this.action = action;
         return this;
     }
 }
